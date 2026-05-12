@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.SeatMapper">
+
+    <insert id="insertStockLog" parameterType="com.example.entity.StockChangeLog">
+        INSERT INTO stock_change_log (
+            log_id,
+            ticket_category_id,
+            order_no,
+            change_amount,
+            before_stock,
+            after_stock,
+            identifier_id,
+            source,
+            status,
+            create_time
+        ) VALUES (
+            #{logId},
+            #{ticketCategoryId},
+            #{orderNo},
+            #{changeAmount},
+            #{beforeStock},
+            #{afterStock},
+            #{identifierId},
+            #{source},
+            #{status},
+            #{createTime}
+        )
+    </insert>
+
+</mapper>

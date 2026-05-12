@@ -1,0 +1,239 @@
+.container {
+    max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 16px;
+        box-sizing: border-box;
+    
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        /* 子元素水平居中 */
+        justify-content: flex-start;
+        /* 允许页面纵向滚动（若内容超出） */
+        overflow: visible;
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+.form-row {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.buttons {
+    display: flex;
+    justify-content: space-between;
+}
+
+button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+.search-btn {
+    display: inline-flex;
+    /* 开启 Flex 布局 */
+    align-items: center;
+    /* 垂直居中 */
+    justify-content: center;
+    /* 水平居中（如果需要） */
+    gap: 4px;
+    /* 图标和文字的间距 */
+    padding: 0 15px;
+    /* 确保上下 padding 一致 */
+    line-height: 1;
+    /* 消除行高带来的偏差 */
+    height: 100%;
+    /* 撑满父容器高度 */
+}
+
+.status {
+    margin-top: 20px;
+    font-size: 1.2em;
+    color: #555;
+}
+
+.note {
+    display: block;
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #888;
+}
+
+.app-title {
+    margin: 0;
+    font-size: 20px;
+    /* 改这里：例如 20px / 1.25rem / 2vw */
+    font-weight: 700;
+}
+/* logo 大小与间距：修改 width 控制大小，或使用百分比 */
+.app-logo {
+    width: 7%;
+    /* 调整为 40px / 56px，或改为 6% */
+    height: 7%;
+    display: block;
+}
+
+
+.header-texts {
+    display: flex;
+    flex-direction: column;
+    /* 改为横向排列 */
+    align-items: center;
+    /* 垂直居中对齐 */
+    gap: 8px;
+    /* 标题和副标题间距 */
+}
+.app-subtitle {
+    margin: 0;
+    font-size: 14px;
+    color: #666;
+}
+
+.header-inner {
+    display: flex;
+    align-items: center;
+    
+    gap: 20px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 12px 30px;
+    padding-left: 299px;
+
+    /* 文字样式增强 */
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.5px;
+    color: #333;
+
+    /* 去掉卡片感，保留底部细线 */
+    background: transparent;
+    border-radius: 0;
+    border: none;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid #ebeef5;
+
+    transition: all 0.15s ease;
+}
+
+/* 无边框图标文字触发器 */
+/* .site-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6e6767;
+    text-decoration: none;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+}
+.site-icon {
+    width: 40%;
+    height: 40%;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+.site-link:hover {
+    background: rgba(64, 158, 255, 0.08);
+    color: #1f7bd6;
+    text-decoration: none;
+}
+
+.site-link .el-icon-house {
+    font-size: 18px;
+    line-height: 1;
+} */
+.big-gray-img {
+    max-width: 86%;
+    /* 图片比容器略小，保留空白 */
+    max-height: 86%;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+    /* 水平居中 */
+    border-radius: 6px;
+    /* 可选圆角 */
+    background: #efefef url('/images/intro.png') center/contain no-repeat;
+}
+.button-row{
+    display: flex;
+    gap: 102px;
+    margin-left: 10px;
+        /* 往右挪 30px，数值你自己定 */
+}
+.nrv-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6e6767;
+    text-decoration: none;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: 18px;
+}
+
+.nrv-link .site-icon {
+    width: 30%;
+    height: 30%;
+    object-fit: contain;
+    display: inline-block;
+}
+
+.nrv-link:hover {
+    background: rgba(64, 158, 255, 0.08);
+    color: #1f7bd6;
+    text-decoration: none;
+}
+
+.nrv-link .el-icon-house {
+    font-size: 18px;
+    line-height: 1;
+}
+.search {
+    margin-left: 530px;
+    /* 往右推 30 像素 */
+}
+.hero-carousel {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    /* 拉伸到视口两边 */
+    max-width: none;
+    padding: 12px 0;
+    box-sizing: border-box;
+}
+
+

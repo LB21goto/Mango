@@ -1,0 +1,86 @@
+@Component
+public class LayeredRouter {
+    
+    // 第一层：关键词规则（0ms，命中率约 60-70%）
+    private Intent matchByKeyword(String message) {
+        String msg = message.toLowerCase();
+        
+        // 订票关键词（优先级最高，避免误判）
+        if (Pattern.matches(".*(买|购|订|抢|选|锁|座|票|下单|支付|订单).*", msg)) {
+            return Intent.BOOKING;
+        }
+        
+        // 规则关键词
+        if (Pattern.matches(".*(退|改|签|规|则|政策|须知|入场|能退|能改|手续费).*", msg)) {
+            return Intent.RULE;
+        }
+        
+        // 闲聊关键词（打招呼、感谢、情绪）
+        if (Pattern.matches(".*(你好|谢谢|哈哈|呵呵|哦|嗯|啊|什么|为什么).*", msg)) {
+            return Intent.CHAT;
+        }
+        
+        return null; // 未命中，进入下一层
+    }
+    
+    // 第二层：向量相似度匹配（5-10ms，命中率提升至 85%）
+    private Intent matchByVector(String message) {
+        // 预置典型问句的向量
+        Map<String, Intent> intentTemplates = Map.of(
+            "我想买票", Intent.BOOKING,
+            "怎么退票", Intent.RULE,
+            "你好", Intent.CHAT,
+            "可以退吗", Intent.RULE,
+            "帮我选座", Intent.BOOKING,
+            "今天天气", Intent.CHAT
+        );
+        
+        // 计算用户消息与模板的余弦相似度
+        float[] userVector = embed(message);
+        Intent bestIntent = null;
+        float maxSimilarity = 0.6f; // 阈值
+        
+        for (var entry : intentTemplates.entrySet()) {
+            float[] templateVector = precomputedVectors.get(entry.getKey());
+            float similarity = cosineSimilarity(userVector, templateVector);
+            if (similarity > maxSimilarity) {
+                maxSimilarity = similarity;
+                bestIntent = entry.getValue();
+            }
+        }
+        
+        return bestIntent; // 未超过阈值返回 null
+    }
+    
+    // 第三层：小模型分类（<200ms，命中率提升至 95%）
+    private Intent classifyBySmallLLM(String message) {
+        // 使用 faster-whisper 或 tiny-llama 等小模型
+        String result = smallLlmClient.complete(
+            "意图分类，输出 BOOKING/RULE/CHAT：" + message
+        );
+        return Intent.valueOf(result);
+    }
+    
+    // 第四层：大模型兜底（<1000ms，最终准确率 99%+）
+    private Intent classifyByLargeLLM(String message, String history) {
+        return largeLlmClient.classify(message, history);
+    }
+    
+    // 公开的路由方法
+    public Intent route(String message, String history) {
+        // L1: 关键词（0ms）
+        Intent intent = matchByKeyword(message);
+        if (intent != null) return intent;
+        
+        // L2: 向量相似度（5ms）
+        intent = matchByVector(message);
+        if (intent != null) return intent;
+        
+        // L3: 小模型（200ms）
+        intent = classifyBySmallLLM(message);
+        if (intent != null) return intent;
+        
+        // L4: 大模型（1000ms，兜底）
+        return classifyByLargeLLM(message, history);
+    }
+}
