@@ -3,6 +3,15 @@
 基于 Spring Boot + Vue.js 构建的高并发票务平台，集成分布式消息队列、Redis 原子锁座、AI 智能助手和抽奖系统。
 
 > 演示项目 — 参考大麦网票务系统架构设计
+>主页
+>  <img width="1593" height="973" alt="image" src="https://github.com/user-attachments/assets/619f9a95-76db-4272-b8d2-5b4ad0df0c77" />
+节目详情
+<img width="1332" height="992" alt="image" src="https://github.com/user-attachments/assets/aac3fd4a-6f6c-4b8d-9dd8-91714bd3b52d" />
+Ai智能客服问答
+<img width="1267" height="977" alt="image" src="https://github.com/user-attachments/assets/c2443362-6dec-4ae9-8095-9074647b683e" />
+
+
+
 
 ## 技术栈
 
