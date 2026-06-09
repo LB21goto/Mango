@@ -54,6 +54,9 @@
           <button @click="toggleVoice" :disabled="voiceLoading" class="btn-voice" :class="{ recording: isRecording }">
             {{ voiceLoading ? '⏳' : (isRecording ? '⏹️' : '🎤') }}
           </button>
+          <button @click="openTicketDialog" class="btn-ticket">
+            🎫 购票
+          </button>
           <button @click="send" :disabled="sending || inputTrimmed === ''" class="btn-send">
             {{ sending ? '发送中...' : '发送' }}
           </button>
@@ -61,6 +64,7 @@
       </footer>
     </div>
 
+    <!-- 原有的工具确认弹窗（保留通用工具调用） -->
     <div v-if="showConfirmDialog" class="confirm-overlay" @click.self="cancelToolCall">
       <div class="confirm-dialog">
         <div class="confirm-header">⚠️ 操作确认</div>
@@ -79,6 +83,14 @@
         </div>
       </div>
     </div>
+
+    <!-- 购票确认弹窗 -->
+    <TicketConfirmDialog
+        :visible="showTicketDialog"
+        :ticketInfo="ticketConfirmInfo"
+        @confirm="handleTicketConfirm"
+        @cancel="handleTicketCancel"
+    />
   </div>
 </template>
 
@@ -86,6 +98,7 @@
 import { ref, reactive, computed, nextTick, watch } from 'vue';
 import ChatMessage from './ChatMessage.vue';
 import ConversationList from './ConversationList.vue';
+import TicketConfirmDialog from './TicketConfirmDialog.vue';
 import { sendMessageToAi } from '../chatApi.js';
 
 const mockMode = false;
@@ -109,6 +122,10 @@ const confirmDialog = ref({
   toolName: '',
   chatId: ''
 });
+
+// 购票确认相关
+const showTicketDialog = ref(false);
+const ticketConfirmInfo = ref({});
 
 const STORAGE_KEY = 'ai_chat_conversations_v1';
 const persisted = localStorage.getItem(STORAGE_KEY);
@@ -198,9 +215,29 @@ async function send() {
 
   try {
     const res = await sendMessageToAi(userText, { sessionId: activeConversationId.value });
-    const reply = (res && res.text) ? res.text : (typeof res === 'string' ? res : JSON.stringify(res));
-    botMessage.text += reply;
-    conv.lastSummary = botMessage.text.length > 40 ? botMessage.text.slice(0, 40) + '...' : botMessage.text;
+    
+    // 获取回复文本
+    let replyText = '';
+    if (res && res.text) {
+      replyText = res.text;
+    } else if (typeof res === 'string') {
+      replyText = res;
+    } else if (res && typeof res === 'object') {
+      replyText = JSON.stringify(res);
+    }
+
+    // 检测购票意图并显示确认弹窗
+    const hasTicketIntent = parseTicketIntent(replyText);
+    
+    if (hasTicketIntent) {
+      // 购票确认场景：显示弹窗，聊天框显示简短提示
+      botMessage.text = '🎫 已为您生成购票信息，请确认以下内容是否正确';
+      conv.lastSummary = '购票确认';
+    } else {
+      // 普通对话回复
+      botMessage.text = replyText;
+      conv.lastSummary = replyText.length > 40 ? replyText.slice(0, 40) + '...' : replyText;
+    }
   } catch (err) {
     botMessage.text += '\n\n（call 失败，请检查后端或控制台日志）';
   } finally {
@@ -387,6 +424,160 @@ function cancelToolCall() {
   isTyping.value = false;
 }
 
+// 购票确认处理
+function handleTicketConfirm(ticketInfo) {
+  showTicketDialog.value = false;
+  sending.value = true;
+  isTyping.value = true;
+
+  ensureActive();
+  const conv = conversations.find(c => c.id === activeConversationId.value);
+  if (!conv) {
+    sending.value = false;
+    isTyping.value = false;
+    return;
+  }
+
+  const botMessage = {
+    id: genId(),
+    role: 'bot',
+    text: '正在执行购票...',
+    time: new Date().toLocaleTimeString()
+  };
+  conv.messages.push(botMessage);
+  scrollToBottom();
+
+  fetch(`${AI_API_BASE}/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      toolName: 'createTicketOrder',
+      params: ticketInfo
+    })
+  }).then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        botMessage.text = '✅ 购票成功！\n' + data.message;
+      } else {
+        botMessage.text = '❌ 购票失败: ' + data.error;
+      }
+    })
+    .catch(err => {
+      botMessage.text = '❌ 购票异常: ' + err.message;
+    })
+    .finally(() => {
+      sending.value = false;
+      isTyping.value = false;
+      scrollToBottom();
+    });
+}
+
+function handleTicketCancel() {
+  showTicketDialog.value = false;
+}
+
+// 手动打开购票确认弹窗
+function openTicketDialog() {
+  ticketConfirmInfo.value = {};
+  showTicketDialog.value = true;
+}
+
+// 解析LLM返回的购票意图并显示确认弹窗
+function parseTicketIntent(responseText) {
+  // 方式1：检查是否包含 __TICKET_INTENT__ 标记
+  if (responseText.includes('__TICKET_INTENT__')) {
+    try {
+      const jsonMatch = responseText.match(/__TICKET_INTENT__([\s\S]*?)__TICKET_INTENT_END__/);
+      if (jsonMatch) {
+        const ticketData = JSON.parse(jsonMatch[1]);
+        ticketConfirmInfo.value = ticketData;
+        showTicketDialog.value = true;
+        return true;
+      }
+    } catch (e) {
+      console.error('解析 __TICKET_INTENT__ 失败', e);
+    }
+  }
+
+  // 方式2：从 markdown 表格中解析购票信息
+  const ticketInfo = parseMarkdownTable(responseText);
+  if (ticketInfo) {
+    ticketConfirmInfo.value = ticketInfo;
+    showTicketDialog.value = true;
+    return true;
+  }
+
+  return false;
+}
+
+// 从 markdown 表格解析购票信息
+function parseMarkdownTable(text) {
+  // 检查是否包含购票相关的 markdown 表格
+  if (!text.includes('|') || !text.includes('🎫')) {
+    return null;
+  }
+
+  try {
+    const lines = text.split('\n');
+    const tableData = {};
+
+    for (const line of lines) {
+      if (!line.includes('|')) continue;
+
+      const cells = line.split('|').map(c => c.trim()).filter(c => c);
+      if (cells.length < 2) continue;
+
+      // 提取 key-value
+      const key = cells[0].replace(/\*\*/g, '').replace(/🎫|🎤|🎟️|👤/g, '').trim();
+      const value = cells[1].replace(/\*\*/g, '').trim();
+
+      // 匹配常见购票字段
+      if (key.includes('演出') || key.includes('节目')) {
+        tableData.eventName = value;
+      } else if (key.includes('时间') || key.includes('日期')) {
+        tableData.showTime = value;
+      } else if (key.includes('场馆') || key.includes('地点')) {
+        tableData.venue = value;
+      } else if (key.includes('票价') || key.includes('价格') || key.includes('金额')) {
+        const priceMatch = value.match(/[\d,]+/);
+        if (priceMatch) {
+          tableData.price = parseInt(priceMatch[0].replace(/,/g, ''));
+        }
+      } else if (key.includes('座位')) {
+        // 解析座位信息，如 "A区3排15号"
+        const seatMatch = value.match(/([A-Z])区(\d+)排(\d+)号?/);
+        if (seatMatch) {
+          tableData.seats = [{
+            area: seatMatch[1],
+            row: seatMatch[2],
+            seat: seatMatch[3]
+          }];
+        }
+      } else if (key.includes('购票人') || key.includes('姓名')) {
+        if (!tableData.buyerInfo) tableData.buyerInfo = {};
+        tableData.buyerInfo.name = value;
+      } else if (key.includes('电话') || key.includes('手机')) {
+        if (!tableData.buyerInfo) tableData.buyerInfo = {};
+        tableData.buyerInfo.phone = value;
+      } else if (key.includes('证件') || key.includes('身份证')) {
+        if (!tableData.buyerInfo) tableData.buyerInfo = {};
+        tableData.buyerInfo.idCard = value;
+      } else if (key.includes('数量')) {
+        tableData.ticketCount = parseInt(value) || 1;
+      }
+    }
+
+    // 只有包含演出名称或座位信息才算是购票确认
+    if (tableData.eventName || (tableData.seats && tableData.seats.length > 0)) {
+      return tableData;
+    }
+  } catch (e) {
+    console.error('解析 markdown 表格失败', e);
+  }
+
+  return null;
+}
+
 watch(currentMessages, () => {
   nextTick(() => {
     if (bodyRef.value) bodyRef.value.scrollTop = bodyRef.value.scrollHeight;
@@ -399,7 +590,7 @@ watch(currentMessages, () => {
   display: flex;
   height: 100vh;
   width: 100%;
-  background: #f5f7fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   overflow: hidden;
 }
 
@@ -407,121 +598,254 @@ watch(currentMessages, () => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  background: #fff;
-  border-left: 1px solid #e6e6e6;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
   min-width: 0;
+  max-width: 100%;
 }
 
 .ai-chat__header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-bottom: 1px solid rgba(102, 126, 234, 0.15);
   gap: 12px;
 }
+
 .toggle-sidebar {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:36px;
-  height:36px;
-  border-radius:6px;
-  border:1px solid #eee;
-  background:#fff;
-  cursor:pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
+
+.toggle-sidebar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
 .chat-header-info {
-  flex:1;
-  min-width:0;
+  flex: 1;
+  min-width: 0;
 }
+
+.chat-header-info h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.chat-header-info small {
+  font-size: 11px;
+  color: #718096;
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .header-actions {
-  display:flex;
-  gap:8px;
-  align-items:center;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .ai-chat__body {
   flex: 1;
   overflow: auto;
-  padding: 16px;
-  background: #fafafa;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%);
+  scroll-behavior: smooth;
+  max-height: calc(100vh - 140px);
 }
+
 .ai-chat__messages {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
 .ai-chat__typing {
-  color: #888;
+  color: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+
+.ai-chat__typing::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+@keyframes typing-bounce {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
 .ai-chat__empty {
-  color:#888;
-  text-align:center;
-  margin-top:20px;
+  color: #a0aec0;
+  text-align: center;
+  margin-top: 60px;
+  font-size: 14px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  border: 1px dashed rgba(102, 126, 234, 0.2);
 }
 
 .ai-chat__footer {
-  display:flex;
-  gap:10px;
-  align-items:center;
-  padding: 10px;
-  border-top: 1px solid #f0f0f0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.98);
+  border-top: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
 }
+
 .ai-chat__input {
   flex: 1;
   resize: none;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  min-height: 40px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(102, 126, 234, 0.15);
+  background: rgba(247, 250, 252, 0.8);
+  font-size: 14px;
+  color: #2d3748;
+  transition: all 0.3s ease;
+  min-height: 44px;
+  max-height: 120px;
 }
+
+.ai-chat__input:focus {
+  outline: none;
+  border-color: rgba(102, 126, 234, 0.5);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.ai-chat__input::placeholder {
+  color: #a0aec0;
+}
+
 .ai-chat__controls {
-  display:flex;
-  flex-direction:column;
-  gap:6px;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
 }
+
+.btn-ticket {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+}
+
+.btn-ticket:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+}
+
 .btn-send {
-  background:#409EFF;
-  color:white;
-  border:none;
-  padding:8px 12px;
-  border-radius:6px;
-  cursor:pointer;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
+
+.btn-send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
 .btn-send:disabled {
-  opacity:0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
+
 .btn-voice {
-  background:#7b2ff7;
-  color:white;
-  border:none;
-  padding:8px 12px;
-  border-radius:6px;
-  cursor:pointer;
-  font-size:16px;
-  transition: all 0.3s;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(245, 87, 108, 0.3);
 }
+
 .btn-voice:hover:not(:disabled) {
-  background:#6b1fe6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
 }
+
 .btn-voice.recording {
-  background:#ff4757;
+  background: linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);
   animation: pulse-voice 1s infinite;
 }
+
 @keyframes pulse-voice {
-  0% { box-shadow: 0 0 0 0 rgba(255,71,87,0.7); }
-  70% { box-shadow: 0 0 0 8px rgba(255,71,87,0); }
-  100% { box-shadow: 0 0 0 0 rgba(255,71,87,0); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
 }
+
 .btn-clear, .btn-new {
-  padding:6px 10px;
-  border:1px solid #ddd;
-  background:#fff;
-  border-radius:6px;
-  cursor:pointer;
+  padding: 8px 14px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #667eea;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-clear:hover, .btn-new:hover {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: transparent;
 }
 
 @media (min-width: 900px) {
@@ -537,78 +861,105 @@ watch(currentMessages, () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
 }
+
 .confirm-dialog {
   background: white;
-  border-radius: 12px;
+  border-radius: 16px;
   width: 400px;
   max-width: 90%;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
 }
+
 .confirm-header {
   padding: 16px 20px;
-  background: #ff9800;
+  background: linear-gradient(135deg, #ff9800 0%, #ffb74d 100%);
   color: white;
   font-weight: bold;
   font-size: 16px;
-  border-radius: 12px 12px 0 0;
 }
+
 .confirm-body {
   padding: 20px;
 }
+
 .confirm-body p {
   margin-bottom: 15px;
   color: #333;
 }
+
 .confirm-params {
-  background: #f5f5f5;
+  background: #f8f9fa;
   border-radius: 8px;
   padding: 12px;
 }
+
 .param-item {
   display: flex;
   justify-content: space-between;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #eee;
 }
+
 .param-item:last-child {
   border-bottom: none;
 }
+
 .param-label {
   color: #666;
-  font-weight: bold;
+  font-weight: 600;
 }
+
 .param-value {
-  color: #2196f3;
+  color: #667eea;
+  font-weight: 500;
 }
+
 .confirm-footer {
   padding: 15px 20px;
   border-top: 1px solid #eee;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  background: #fafafa;
 }
+
 .btn-cancel {
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: 1px solid #ddd;
   background: #fff;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
 }
+
+.btn-cancel:hover {
+  background: #f5f5f5;
+}
+
 .btn-confirm {
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
-  background: #4caf50;
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
   color: white;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 }
+
 .btn-confirm:hover {
-  background: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 </style>

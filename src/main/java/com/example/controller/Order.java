@@ -14,7 +14,10 @@ public class Order {
     private SeatService seatService;
     @PostMapping("/create")
     public String createOrder(@RequestBody TicketDTO ticketDTO) {
-
+        // 直接打印原始请求体（方便查看前端到底发了什么）
+        System.out.println("=== 收到购票原始请求 ===");
+        System.out.println(ticketDTO);
+        System.out.println("=== 原始请求结束 ===");
         Long userId = ticketDTO.getUserId();
         Long seatId = ticketDTO.getSeatId();
         System.out.println("收到购票请求 -> 用户:" + userId

@@ -1,11 +1,13 @@
 package com.Ai.Controller;
 
 import com.Ai.RouteType;
+import com.Ai.state.ChatState;
 import com.Ai.state.ChatStateMachine;
+import com.Ai.state.EventType;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/state-machine")
@@ -17,47 +19,26 @@ public class StateMachineDemoController {
         this.stateMachine = stateMachine;
     }
 
-    @PostMapping("/start")
-    public Map<String, Object> start() {
-        stateMachine.start();
-        return response("状态机启动");
-    }
+    @PostMapping("/trigger")
+    public Map<String, Object> trigger(@RequestParam String event) {
+        try {
+            EventType eventType = EventType.valueOf(event);
 
-    @PostMapping("/intent")
-    public Map<String, Object> recognizeIntent(@RequestParam String intent) {
-        RouteType routeType = RouteType.valueOf(intent);
-        stateMachine.onIntentRecognized(routeType);
-        return response("意图识别: " + intent);
-    }
+            if (!stateMachine.canTransition(eventType)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "当前状态不允许此事件");
+                error.put("currentState", stateMachine.getCurrentState().name());
+                error.put("event", event);
+                return error;
+            }
 
-    @PostMapping("/processing")
-    public Map<String, Object> processing() {
-        stateMachine.onProcessing();
-        return response("开始处理");
-    }
-
-    @PostMapping("/confirmation")
-    public Map<String, Object> waitingConfirmation() {
-        stateMachine.onWaitingConfirmation();
-        return response("等待确认");
-    }
-
-    @PostMapping("/complete")
-    public Map<String, Object> complete() {
-        stateMachine.onComplete();
-        return response("完成");
-    }
-
-    @PostMapping("/error")
-    public Map<String, Object> error(@RequestParam(required = false, defaultValue = "测试错误") String message) {
-        stateMachine.onError(new Exception(message));
-        return response("发生错误: " + message);
-    }
-
-    @PostMapping("/reset")
-    public Map<String, Object> reset() {
-        stateMachine.reset();
-        return response("状态机已重置");
+            stateMachine.trigger(eventType);
+            return response("状态转换成功");
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return error;
+        }
     }
 
     @GetMapping("/status")
@@ -68,12 +49,32 @@ public class StateMachineDemoController {
         return result;
     }
 
+    @GetMapping("/rules")
+    public Map<String, Object> getAllRules() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("currentState", stateMachine.getCurrentState().name());
+
+        List<Map<String, String>> rules = stateMachine.getAllRules().entrySet().stream()
+                .map(entry -> {
+                    Map<String, String> rule = new HashMap<>();
+                    String[] parts = entry.getKey().split("_");
+                    rule.put("fromState", parts[0]);
+                    rule.put("event", parts[1]);
+                    rule.put("toState", entry.getValue().name());
+                    return rule;
+                })
+                .collect(Collectors.toList());
+
+        result.put("transitionRules", rules);
+        return result;
+    }
+
     @PostMapping("/demo-ticket-flow")
     public Map<String, Object> demoTicketFlow() {
         stateMachine.reset();
 
         System.out.println("\n=== 演示：购票流程 ===");
-        stateMachine.start();
+        stateMachine.trigger(EventType.START);
         stateMachine.onIntentRecognized(RouteType.TICKET_PURCHASE);
         stateMachine.onProcessing();
         stateMachine.onWaitingConfirmation();
@@ -82,17 +83,10 @@ public class StateMachineDemoController {
         return response("购票流程演示完成");
     }
 
-    @PostMapping("/demo-chat-flow")
-    public Map<String, Object> demoChatFlow() {
+    @PostMapping("/reset")
+    public Map<String, Object> reset() {
         stateMachine.reset();
-
-        System.out.println("\n=== 演示：闲聊流程 ===");
-        stateMachine.start();
-        stateMachine.onIntentRecognized(RouteType.CHAT);
-        stateMachine.onProcessing();
-        stateMachine.onComplete();
-
-        return response("闲聊流程演示完成");
+        return response("状态机已重置");
     }
 
     private Map<String, Object> response(String message) {

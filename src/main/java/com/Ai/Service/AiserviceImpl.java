@@ -1,4 +1,4 @@
-package com.Ai;
+package com.Ai.Service;
 
 import com.Ai.mapper.Aimapper;
 import org.springframework.beans.factory.annotation.Autowired;

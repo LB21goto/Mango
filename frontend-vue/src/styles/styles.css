@@ -1,17 +1,25 @@
 .container {
     max-width: 1280px;
-        width: 100%;
-        margin: 0 auto;
-        padding: 16px;
-        box-sizing: border-box;
-    
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        /* 子元素水平居中 */
-        justify-content: flex-start;
-        /* 允许页面纵向滚动（若内容超出） */
-        overflow: visible;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px;
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* 子元素水平居中 */
+    justify-content: flex-start;
+    /* 允许页面纵向滚动（若内容超出） */
+    overflow: visible;
+
+    /* 👇 新增以下属性 👇 */
+    height: 100vh;
+    /* 让容器占满整个浏览器视窗高度 */
+    max-height: 100vh;
+    /* 最大高度不超过视窗 */
+    box-sizing: border-box;
+    /* 确保 padding 不会撑破高度 */
 }
 
 h1 {
@@ -54,6 +62,7 @@ button {
 button:hover {
     background-color: #0056b3;
 }
+
 .search-btn {
     display: inline-flex;
     /* 开启 Flex 布局 */
@@ -90,6 +99,7 @@ button:hover {
     /* 改这里：例如 20px / 1.25rem / 2vw */
     font-weight: 700;
 }
+
 /* logo 大小与间距：修改 width 控制大小，或使用百分比 */
 .app-logo {
     width: 7%;
@@ -108,6 +118,7 @@ button:hover {
     gap: 8px;
     /* 标题和副标题间距 */
 }
+
 .app-subtitle {
     margin: 0;
     font-size: 14px;
@@ -117,7 +128,7 @@ button:hover {
 .header-inner {
     display: flex;
     align-items: center;
-    
+
     gap: 20px;
     max-width: 100%;
     margin: 0 auto;
@@ -185,12 +196,14 @@ button:hover {
     /* 可选圆角 */
     background: #efefef url('/images/intro.png') center/contain no-repeat;
 }
-.button-row{
+
+.button-row {
     display: flex;
     gap: 102px;
     margin-left: 10px;
-        /* 往右挪 30px，数值你自己定 */
+    /* 往右挪 30px，数值你自己定 */
 }
+
 .nrv-link {
     display: inline-flex;
     align-items: center;
@@ -223,10 +236,12 @@ button:hover {
     font-size: 18px;
     line-height: 1;
 }
+
 .search {
     margin-left: 530px;
     /* 往右推 30 像素 */
 }
+
 .hero-carousel {
     width: 100vw;
     margin-left: calc(50% - 50vw);
@@ -235,5 +250,3 @@ button:hover {
     padding: 12px 0;
     box-sizing: border-box;
 }
-
-

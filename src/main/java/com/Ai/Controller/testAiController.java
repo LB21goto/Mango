@@ -1,6 +1,6 @@
 package com.Ai.Controller;
 
-import com.Ai.AiserviceImpl;
+import com.Ai.Service.AiserviceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -4,6 +4,8 @@ package com.example.mapper;
 import com.example.entity.Order;
 import org.apache.ibatis.annotations.*;
 
+import java.util.List;
+
 public interface OrderMapper {
 
     /**
@@ -20,5 +22,8 @@ public interface OrderMapper {
 
     @Update("UPDATE test_order SET status = #{status} WHERE order_no = #{orderNo}")
     int cancelOrder(@Param("orderNo") String orderNo, @Param("status") Integer status);
+
+    @Select("SELECT * FROM test_order WHERE user_id = #{userId} ORDER BY create_time DESC")
+    List<Order> selectByUserId(Long userId);
 
 }

@@ -102,18 +102,32 @@
         </aside>
       </div>
     </div>
+
+    <!-- 选座组件 -->
+    <SeatSelector
+      ref="seatSelectorRef"
+      v-model:visible="showSeatSelector"
+      :price="selectedPriceValue"
+      :seats-per-row="[4, 6, 10]"
+      :event-id="eventId"
+      @confirm="handleSeatConfirm"
+    />
   </div>
 </template>
 
 <script>
+import SeatSelector from './SeatSelector.vue';
+
 export default {
   name: 'TicketForm',
+  components: { SeatSelector },
   props: { eventId: { type: [String, Number], default: null } }, // 若已有可合并
   data() {
     return {
       date: null,
       qty: 1,
       loading: false,
+      showSeatSelector: false,
       // 新增：记录当前选中的价格类型
       selectedPrice: 'normal', // 默认选中普通券
       priceMap: { normal: 88, vip: 128 }, // 可按需调整
@@ -163,35 +177,39 @@ export default {
         this.$message?.warning('请选择场次');
         return;
       }
+      // 先获取已售座位，再显示选座组件
+      await this.$refs.seatSelectorRef?.fetchSoldSeats();
+      this.showSeatSelector = true;
+    },
+    handleSeatConfirm({ seats, totalPrice }) {
+      console.log('选座结果:', seats, '总价:', totalPrice);
+      this.$message?.success(`已选 ${seats.length} 个座位，总价 ¥${totalPrice}`);
+      if (seats.length > 0) {
+        this.createOrder(seats[0], totalPrice);
+      }
+    },
+    async createOrder(seat, totalPrice) {
       this.loading = true;
       try {
         const payload = {
-          userId: 114514, // 若有登录请填入真实 userId
-          seatId: this.selectedSessionId, // or 传具体座位 id，按后端定义
-          eventId: this.eventId // 组件 prop，确保有值
+          userId: 114514,
+          seatId: seat.seatId,
+          eventId: this.eventId
         };
-
-        // 把 host:port 改为后端实际监听端口（例如 8080 或 6086）
         const res = await fetch('http://localhost:6086/ticket/seat/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
-        // 你的后端返回 String -> 用 text() 解析；若后端改为 JSON 请改成 res.json()
         const text = await res.text();
-
         if (res.ok) {
-          this.$message?.success(text || '下单请求已提交');
-          this.status = text || '下单成功';
+          this.$message?.success(text || '下单成功');
         } else {
           this.$message?.error(text || '下单失败');
-          this.status = text || '下单失败';
         }
       } catch (e) {
         console.error(e);
         this.$message?.error('网络或服务异常');
-        this.status = '网络或服务异常';
       } finally {
         this.loading = false;
       }

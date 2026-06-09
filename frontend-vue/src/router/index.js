@@ -14,6 +14,16 @@ const routes = [
     path: '/ai-chat',
     name: 'AIChat',
     component: () => import('../components/AIChat.vue')
+  },
+  {
+    path: '/ai-state-machine',
+    name: 'AIStateMachine',
+    component: () => import('../components/AIStateMachineDemo.vue')
+  },
+  {
+    path: '/my-orders',
+    name: 'MyOrder',
+    component: () => import('../views/MyOrder.vue')
   }
 ]
 

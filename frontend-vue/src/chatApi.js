@@ -4,7 +4,7 @@ const AI_BASE = '';
 
 export async function sendMessageToAi(message, options = {}) {
     try {
-        const url = (AI_BASE ? AI_BASE : '') + '/api/ai/chat';
+        const url = (AI_BASE ? AI_BASE : '') + '/api/ai/chat/process';
         console.log('我马上要发给后端的chatId 是:', options.sessionId);
 
         const resp = await axios.post(url, {
@@ -16,6 +16,13 @@ export async function sendMessageToAi(message, options = {}) {
             if (typeof resp.data === 'string') return resp.data;
             if (resp.data.text) return { text: resp.data.text };
             if (resp.data.data && resp.data.data.text) return { text: resp.data.data.text };
+            // 返回完整响应，让前端处理解析
+            if (resp.data.rawReply) {
+                return { 
+                    text: resp.data.rawReply,
+                    rawResponse: resp.data 
+                };
+            }
             return resp.data;
         }
         return null;

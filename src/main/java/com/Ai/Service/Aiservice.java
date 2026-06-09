@@ -1,4 +1,4 @@
-package com.Ai;
+package com.Ai.Service;
 
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;

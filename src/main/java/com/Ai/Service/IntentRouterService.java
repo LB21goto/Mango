@@ -1,5 +1,6 @@
-package com.Ai;
+package com.Ai.Service;
 
+import com.Ai.RouteType;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +16,16 @@ public class IntentRouterService {
     // ===== 闲聊类关键词 =====
     private static final List<String> CHAT_KEYS = List.of(
             "你好", "在吗", "你是谁", "介绍一下你自己", "谢谢", "哈哈", "晚安", "早上好", "中午好", "晚上好"
+    );
+    // ===== 购票类关键词（原子词版） =====
+    private static final List<String> TICKET_PURCHASE_KEYS = List.of(
+            // 动词
+            "买", "订", "购票", "抢票", "候补", "下单",
+            // 标的物（拆碎）
+            "票", "门票", "座",
+            // 场景（拆碎，因为用户可能说“周杰伦演唱会”、“电影票”、“火车票”）
+            "电影", "火车", "高铁", "动车", "飞机", "机票",
+            "演出", "演唱会", "话剧", "音乐节", "景点", "游乐园"
     );
 
     // ===== 修改类关键词 =====
@@ -53,9 +64,12 @@ public class IntentRouterService {
         if (containsAny(text, AMMO_KEYS)) {
             return RouteType.AMMO;
         }
+        if(containsAny(text,TICKET_PURCHASE_KEYS)){
+            return RouteType.TICKET_PURCHASE;
+        }
 
         // 5. 默认走知识库查询
-        return RouteType.RAG_QUERY;
+        return RouteType.CHAT;
     }
 
     private boolean containsAny(String text, List<String> keys) {

@@ -1,10 +1,13 @@
-package com.Ai;
+package com.Ai.Service;
 
 
+import com.Ai.AopLog;
+import com.Ai.LLMSingleFlightCache;
+import com.Ai.Mcptools;
+import com.Ai.RouteType;
+import com.Ai.state.ChatStateMachine;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
-import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
 
@@ -17,10 +20,8 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.Ai.AopLog;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -28,7 +29,7 @@ import java.util.concurrent.TimeoutException;
 
 @Service
 public class OpenAiService {
-
+    //https://github.com/java-up-up/super-agent.git
     @Resource
     private ChatClient chatClient;
     @Resource
@@ -46,70 +47,76 @@ public class OpenAiService {
     private IntentRouterService intentRouterService;
     @Autowired
     private LLMSingleFlightCache singleFlightCache;
-    // 1. 创建 RAG 顾问，指定使用哪个向量库
+    @Autowired
+    private ChatStateMachine stateMachine;
 
     @AopLog
     public String excute(String message, String chatId) {
         long startTime = System.currentTimeMillis();
+        String key = (message == null ? "" : message.trim());
         System.out.println("【JARVIS】收到消息: " + message);
 
-        // ===== Single Flight 防重逻辑开始 =====
-        // 1. 先检查是否有缓存结果
-        String cachedResult = singleFlightCache.getCachedResult(message);
+        stateMachine.reset();
+        stateMachine.start();
+
+        String cachedResult = singleFlightCache.getCachedResult(key);
         if (cachedResult != null) {
             long t0 = System.currentTimeMillis();
             System.out.println("【JARVIS】缓存命中，耗时: " + (t0 - startTime) + "ms");
+
             return cachedResult;
         }
 
-        // 2. 获取或创建 CompleteFuture
-        CompletableFuture<String> future = singleFlightCache.getOrCreateFuture(message);
+        LLMSingleFlightCache.Flight flight = singleFlightCache.getOrCreateFuture(key);
 
-        // 3. 如果获得了锁（future 是新创建的），则执行 LLM 调用
-        // 如果未获得锁，直接 join 等待结果
-        if (!future.isDone()) {
-            // 当前线程获得了锁，需要执行 LLM 调用
+        if (flight.isLeader) {
+            System.out.println("【JARVIS】我是 leader，开始执行 LLM 调用");
             try {
                 String result = chatOnce(message, chatId, startTime);
-                singleFlightCache.cacheResult(message, result);
+                singleFlightCache.cacheResult(key, result);
+                stateMachine.onComplete();
                 return result;
             } catch (Exception e) {
-                singleFlightCache.cleanupOnError(message, e);
+                System.out.println("【JARVIS】leader 执行出错: " + e.getMessage());
+                stateMachine.onError(e);
+                singleFlightCache.cleanupOnError(key, e);
                 throw e;
             }
         } else {
-            // 当前线程未获得锁，等待其他线程的结果
+            System.out.println("【JARVIS】我是 follower，等待 leader 完成");
             try {
-                String result = future.get(35, TimeUnit.SECONDS); // 超时时间稍长于 LOCK_TIMEOUT
+                String result = flight.future.get(35, TimeUnit.SECONDS);
                 long t0 = System.currentTimeMillis();
                 System.out.println("【JARVIS】获得共享结果，耗时: " + (t0 - startTime) + "ms");
+                stateMachine.onComplete();
                 return result;
             } catch (TimeoutException e) {
                 System.out.println("【JARVIS】等待超时，执行降级逻辑");
-                // 降级：执行自己的 LLM 调用
                 try {
                     String result = chatOnce(message, chatId, startTime);
+                    stateMachine.onComplete();
                     return result;
                 } catch (Exception ex) {
+                    stateMachine.onError(ex);
                     throw new RuntimeException("降级LLM调用失败", ex);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                stateMachine.onError(e);
                 throw new RuntimeException("等待被中断", e);
             } catch (ExecutionException e) {
+                stateMachine.onError(e);
                 throw new RuntimeException("共享执行异常", e.getCause());
             }
         }
-        // ===== Single Flight 防重逻辑结束 =====
     }
 
-    /**
-     * 执行真实的 LLM 调用
-     */
     public String chatOnce(String message, String chatId, long startTime) {
-        // 1. 先硬路由
         RouteType routeType = intentRouterService.classify(message);
         System.out.println("【JARVIS】路由结果: " + routeType);
+
+        stateMachine.onIntentRecognized(routeType);
+        stateMachine.onProcessing();
 
         QuestionAnswerAdvisor ragAdvisor = new QuestionAnswerAdvisor(vectorStore);
         long t1 = System.currentTimeMillis();
@@ -127,7 +134,7 @@ public class OpenAiService {
         System.out.println("【JARVIS】步骤3-工具加载: " + (t3 - t2) + "ms");
 
         String stream = chatClient.prompt()
-                .system(tsc.txt)
+                .system("tsc.txt")
                 .user(message)
                 .advisors(memoryAdvisor, ragAdvisor)
                 .options(OpenAiChatOptions.builder().model("deepseek-chat").build())

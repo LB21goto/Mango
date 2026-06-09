@@ -24,10 +24,15 @@
           </template>
         </el-input>
         <div class="button-row">
-          <el-button round>个人订单</el-button>
+          <router-link to="/my-orders">
+            <el-button round>个人订单</el-button>
+          </router-link>
         </div>
         <el-link href="http://localhost:3000/ai-chat" target="_blank" type="primary" :underline="false">
           🤖 AI助手
+        </el-link>
+        <el-link href="http://localhost:3000/ai-state-machine" target="_blank" type="warning" :underline="false">
+          📊 状态机Demo
         </el-link>
       </div>
     </header>
