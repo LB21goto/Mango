@@ -1,4 +1,4 @@
-# 🎫 漫GO票务系统 (Mygo Ticketing Platform)
+# 🎫 漫GO票务系统 (Mango Ticketing Platform)
 
 基于 Spring Boot + Vue.js 构建的高并发票务平台，集成分布式消息队列、Redis 原子锁座、AI 智能助手和抽奖系统。
 
