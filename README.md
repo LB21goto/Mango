@@ -9,7 +9,7 @@
 | **前端**     | Vue 3, Vite, Element Plus, Vue Router                   |
 | **消息队列** | Apache RocketMQ（异步订单处理、延迟队列）               |
 | **缓存与锁** | Redis + Lua 脚本实现原子锁座                            |
-| **人工智能** | Spring AI, DeepSeek LLM, 阿里云 DashScope ASR, MCP 协议 |
+| **AI** | Spring AI, DeepSeek LLM, 阿里云 DashScope ASR, MCP 协议 |
 | **数据库**   | MySQL（ShardingSphere 分库分表）                        |
 | **基础设施** | Nacos, HikariCP, Feign, Sentinel                        |
 
