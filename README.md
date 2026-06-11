@@ -11,7 +11,6 @@
 | **缓存与锁** | Redis + Lua 脚本实现原子锁座                            |
 | **AI** | Spring AI, DeepSeek LLM, 阿里云 DashScope ASR, MCP 协议 |
 | **数据库**   | MySQL（ShardingSphere 分库分表）                        |
-| **基础设施** | Nacos, HikariCP, Feign, Sentinel                        |
 
 ## 功能特性
 
